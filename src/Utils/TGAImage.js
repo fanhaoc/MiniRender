@@ -2,7 +2,7 @@
  * @Author: anganao
  * @Date: 2024-03-10 15:39:46
  * @LastEditors: anganao
- * @LastEditTime: 2024-03-11 20:26:32
+ * @LastEditTime: 2024-03-22 21:07:06
  * @FilePath: \tinyRenderJS\src\Utils\TGAImage.js
  * @Description: 
  * Copyright (c) 2024 by VGE, All Rights Reserved. 
@@ -17,7 +17,9 @@ export default class TGAImage{
         this.image = this.ctx.createImageData(width, height);
         this.width = width;
         this.height = height;
-
+        this.zBuffer = new Float32Array(width * height).fill(Number.MIN_VALUE);
+        // 启用功能
+        this.enableZBuffer = true;
  
     }
     setData(x, y, color){
@@ -114,26 +116,50 @@ export default class TGAImage{
             for(let y=boundingBox.y;y<=boundingBox.y+boundingBox.height;y++){
                 const [g1, g2, g3] = gravityCoord([x, y]);
                 if(Math.min(g1, g2, g3) < 0) continue;
-
+                
+                // y轴反转
+                const inversy = this.height - y;
                 let color = undefined;
-                // y轴翻转
+                // 颜色插值
                 if(color2 === undefined || color3 === undefined){
                     color = color1;
                 } else {
                     color = this.colorInterpolation_triangle([color1, color2, color3], [g1, g2, g3]);
                 }
-                // 光照
-                this.setData(x, this.height - y, color);
+                if(this.enableZBuffer){
+                    // zbuffer插值
+                    const z = point1[2] * g1 + point2[2] * g2 + point3[2] * g3;
+                    if(this.setZBuffer(x, inversy, z)){
+                        this.setData(x, inversy, color);
+                    }
+                } else {
+                    this.setData(x, inversy, color); 
+                }        
             }
         }
     }
-    // 颜色插值函数
+    // 插值函数， 根据重心坐标计算颜色或则深度
     colorInterpolation_triangle([color1, color2, color3], [g1, g2, g3]){
         let color = []
         for(let i=0;i<4;i++){
             color[i] = Math.round(color1[i] * g1 + color2[i] * g2 + color3[i] * g3);
         }
         return color
+    }
+
+    //三维坐标到屏幕坐标的流程
+    threeToTwo(point1, point2, point3, color1, color2, color3){
+
+    }
+    // 每次设置点的时候都要设置zBuffer
+    setZBuffer(x, y, z){
+        let index = x + y * this.image.width;
+        if(this.zBuffer[index] < z){
+            this.zBuffer[index] = z;
+            return true;
+            
+        }
+        return false;
     }
 
     draw(){
